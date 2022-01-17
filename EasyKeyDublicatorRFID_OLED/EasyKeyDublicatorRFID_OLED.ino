@@ -30,6 +30,7 @@ extern uint8_t BigNumbers[];
 #define R_Led 2            // RGB Led
 #define G_Led 3
 #define B_Led 4
+#define Led_Common_cathode 0
 #define ACpin 6            // Вход Ain0 аналогового компаратора 0.1В для EM-Marie 
 #define speakerPin 12       // Спикер, он же buzzer, он же beeper
 #define FreqGen 11         // генератор 125 кГц
@@ -136,16 +137,29 @@ void timerIsr() {   // прерывание таймера для энкодер
   enc1.tick();
 }
 
+//Change the LED state depends on LED type
+void toggleLed(uint16_t led, bool state = false) {
+  if (Led_Common_cathode) {
+    digitalWrite(led, state ? HIGH : LOW);
+  } else {
+    digitalWrite(led, state ? LOW : HIGH);
+  }
+}
+
 void clearLed() {
-  digitalWrite(R_Led, LOW);
-  digitalWrite(G_Led, LOW);
-  digitalWrite(B_Led, LOW);
+  toggleLed(R_Led, false);
+  toggleLed(G_Led, false);
+  toggleLed(B_Led, false);
+
   switch (copierMode)
   {
-    case md_read: digitalWrite(G_Led, HIGH); digitalWrite(Luse_Led, HIGH); break;
-    case md_write: digitalWrite(R_Led, HIGH); digitalWrite(Luse_Led, HIGH); break;
-    case md_blueMode: digitalWrite(B_Led, HIGH); digitalWrite(Luse_Led, LOW); break;
+    case md_read: toggleLed(G_Led, true); break;
+    case md_write: toggleLed(R_Led, true); break;
+    case md_blueMode: toggleLed(B_Led, true); break;
   }
+
+  //Toggle Luse led
+  digitalWrite(Luse_Led, copierMode == md_read || copierMode == md_write ? HIGH : LOW);
 }
 
 byte indxKeyInROM(byte buf[]) { //возвращает индекс или ноль если нет в ROM
@@ -278,7 +292,7 @@ bool write2iBtnTM2004() {               // функция записи на TM20
     Serial.println(F(" The key copy faild"));
     OLED_printError(F("The key copy faild"));
     Sd_ErrorBeep();
-    digitalWrite(R_Led, HIGH);
+    toggleLed(R_Led, true);
     return false;
   }
   ibutton.reset();
@@ -286,7 +300,7 @@ bool write2iBtnTM2004() {               // функция записи на TM20
   OLED_printError(F("The key has copied"), false);
   Sd_ReadOK();
   delay(2000);
-  digitalWrite(R_Led, HIGH);
+  toggleLed(R_Led, true);
   return true;
 }
 
@@ -316,12 +330,12 @@ bool write2iBtnRW1990_1_2_TM01(emRWType rwType) {             // функция 
     ibutton.write_bit(!rwFlag);               // записываем значение флага записи = 1 - отключаем запись
     delay(5); pinMode(iButtonPin, INPUT);
   }
-  digitalWrite(R_Led, LOW);
+  toggleLed(R_Led, false);
   if (!dataIsBurningOK(bitCnt)) {                 // проверяем корректность записи
     Serial.println(F(" The key copy faild"));
     OLED_printError(F("The key copy faild"));
     Sd_ErrorBeep();
-    digitalWrite(R_Led, HIGH);
+    toggleLed(R_Led, true);
     return false;
   }
   Serial.println(F(" The key has copied successesfully"));
@@ -335,7 +349,7 @@ bool write2iBtnRW1990_1_2_TM01(emRWType rwType) {             // функция 
   OLED_printError(F("The key has copied"), false);
   Sd_ReadOK();
   delay(2000);
-  digitalWrite(R_Led, HIGH);
+  toggleLed(R_Led, true);
   return true;
 }
 
@@ -396,11 +410,11 @@ bool write2iBtn() {
     if (keyID[i] == addr[i]) Check++;         // сравниваем код для записи с тем, что уже записано в ключе.
   }
   if (Check == 8) {                           // если коды совпадают, ничего писать не нужно
-    digitalWrite(R_Led, LOW);
+    toggleLed(R_Led, false);
     Serial.println(F(" it is the same key. Writing in not needed."));
     OLED_printError(F("It is the same key"));
     Sd_ErrorBeep();
-    digitalWrite(R_Led, HIGH);
+    toggleLed(R_Led, true);;
     delay(1000);
     return false;
   }
@@ -426,7 +440,7 @@ bool searchIbutton() {
       Serial.println(F("CRC is not valid!"));
       OLED_printError(F("CRC is not valid!"));
       Sd_ErrorBeep();
-      digitalWrite(B_Led, HIGH);
+      toggleLed(B_Led, true);
       return false;
     }
     return true;
@@ -730,13 +744,13 @@ void rfidACsetOn() {
 bool searchEM_Marine( bool copyKey = true) {
   ///  byte gr = digitalRead(G_Led);
   ///  bool rez = false;
-  digitalWrite(G_Led, LOW);
+  toggleLed(G_Led, false);
   rfidACsetOn();            // включаем генератор 125кГц и компаратор
   delay(6);                //13 мс длятся переходные прцессы детектора
   if (!readEM_Marie(addr)) {
     ////    if (!copyKey) TCCR2A &=0b00111111;              //Оключить ШИМ COM2A (pin 11)
     ///    digitalWrite(G_Led, gr);
-    digitalWrite(G_Led, HIGH);
+    toggleLed(G_Led, true);
     return false;///rez;
   }
   ///  rez = true;
@@ -752,7 +766,7 @@ bool searchEM_Marine( bool copyKey = true) {
   Serial.println(F(") Type: EM-Marie "));
   ////  if (!copyKey) TCCR2A &=0b00111111;              //Оключить ШИМ COM2A (pin 11)
   ///  digitalWrite(G_Led, gr);
-  digitalWrite(G_Led, HIGH);
+  toggleLed(G_Led, true);
   return true;///rez;
 }
 
@@ -841,7 +855,7 @@ bool write2rfidT5557(byte* buf) {
     Sd_ReadOK();
     delay(2000);
   }
-  digitalWrite(R_Led, HIGH);
+  toggleLed(R_Led, true);
   return result;
 }
 
@@ -879,11 +893,12 @@ bool write2rfid() {
         break;
       }
     if (Check) {                                          // если коды совпадают, ничего писать не нужно
-      digitalWrite(R_Led, LOW);
+
+      toggleLed(R_Led, false);
       Serial.println(F(" it is the same key. Writing in not needed."));
       OLED_printError(F("It is the same key"));
       Sd_ErrorBeep();
-      digitalWrite(R_Led, HIGH);
+      toggleLed(R_Led, true);
       delay(1000);
       return false;
     }
@@ -1005,7 +1020,7 @@ void loop() {
 
         Sd_ReadOK();
         copierMode = md_read;
-        digitalWrite(G_Led, HIGH);
+        toggleLed(G_Led, true);
         if (indxKeyInROM(keyID) == 0) OLED_printKey(keyID, 1);
         else OLED_printKey(keyID, 3);
       }
